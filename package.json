@@ -1,0 +1,28 @@
+{
+  "name": "stratosphere",
+  "version": "1.0.0",
+  "description": "Shrink wrap your dynamically generated assets",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ben-ng/stratosphere.git"
+  },
+  "keywords": [
+    "phonegap",
+    "air",
+    "assets",
+    "browserify",
+    "shrinkwrap",
+    "shrink",
+    "wrap"
+  ],
+  "author": "Ben Ng <me@benng.me>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ben-ng/stratosphere/issues"
+  },
+  "homepage": "https://github.com/ben-ng/stratosphere"
+}
