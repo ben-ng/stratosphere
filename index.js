@@ -201,14 +201,29 @@ Stratosphere.prototype.writeAssets = function writeAssets (cb) {
 
     function writeAsset (tuple, next) {
 
-      var headers = JSON.stringify(tuple[1].header)
-        , paddedHeaderLength = new Buffer(pad(headerLengthLength, '' + Buffer.byteLength(headers), '0'))
-        , headerBuffer = new Buffer(headers)
-        , data = Buffer.isBuffer(tuple[1].data) ? tuple[1].data : new Buffer(tuple[1].data)
-        , assetData = Buffer.concat([paddedHeaderLength, headerBuffer, data])
-        , routeHash = hash(normalize(tuple[0]))
+      var data = Buffer.isBuffer(tuple[1].data) ? tuple[1].data : new Buffer(tuple[1].data)
+        , finish = function () {
+            var headers = JSON.stringify(tuple[1].header)
+              , paddedHeaderLength = new Buffer(pad(headerLengthLength, '' + Buffer.byteLength(headers), '0'))
+              , headerBuffer = new Buffer(headers)
+              , assetData = Buffer.concat([paddedHeaderLength, headerBuffer, data])
+              , routeHash = hash(normalize(tuple[0]))
 
-      fs.writeFile(path.join(opts.root, routeHash), assetData, next)
+            fs.writeFile(path.join(opts.root, routeHash), assetData, next)
+          }
+
+      if(tuple[1].header['content-encoding'] && tuple[1].header['content-encoding'].indexOf('gzip') > -1) {
+        require('zlib').gzip(data, function (err, mindata) {
+          if(err)
+            return cb(err)
+
+          data = mindata
+          finish()
+        })
+      }
+      else {
+        finish()
+      }
     }
 
     function mapAsset (tuple) {

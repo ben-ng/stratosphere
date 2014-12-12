@@ -16,7 +16,10 @@ function serveCat (res) {
           res.end()
         }
         else {
-          res.writeHead(200, {'Content-Type': 'image/jpeg', 'Content-Length': zipped.length})
+          res.writeHead(200, {
+            'Content-Type': 'image/jpeg'
+          , 'Content-Length': zipped.length
+          , 'Content-Encoding': 'gzip'})
           res.end(zipped)
         }
       })
