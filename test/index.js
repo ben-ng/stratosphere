@@ -7,6 +7,7 @@ var test = require('tape')
   , rimraf = require('rimraf')
   , fs = require('fs')
   , bufferEqual = require('buffer-equal')
+  , zlib = require('zlib')
 
 test('[start] should clean up the tmp directory', function (t) {
   t.plan(1)
@@ -27,14 +28,17 @@ test('should do nothing when disabled', function (t) {
   // assert that our test fixtures are working
   request(wrapped).get('/cat')
                   .expect(200)
-                  .expect('Content-Length', 24894)
+                  .expect('Content-Length', 24462)
                   .expect('Content-Type', 'image/jpeg')
                   .end(function (err, res) {
                     t.ifErr(err, 'no cat request error')
 
                     fs.readFile(path.join(__dirname, 'cat.jpg'), function (err, data) {
                       t.ifError(err, 'no cat image read error')
-                      t.ok(bufferEqual(res.body, data), 'cat image data should match')
+
+                      zlib.gzip(data, function (err, zipped) {
+                        t.ok(bufferEqual(res.body, zipped), 'cat image data should match')
+                      })
                     })
                   })
 
@@ -58,19 +62,23 @@ test('should preload assets and save them to disk', function (t) {
       // assert on the assets returned in the callback
       fs.readFile(path.join(__dirname, 'cat.jpg'), function (err, data) {
         t.ifError(err, 'no cat image read error')
-        t.ok(bufferEqual(assets['/cat'].data, data), 'cat asset data should match')
-        t.equal(assets['/cat'].header['content-type'], 'image/jpeg', 'cat content-type should be image/jpeg')
-        t.equal(assets['/cat'].header['content-length'], '24894', 'cat content-length should be 24894')
 
-        // assert on the filesystem
-        instance._hasAssetForRoute('/cat', function (exists) {
-          t.ok(exists, '[fs] cat asset should exist on filesystem')
+        zlib.gzip(data, function (err, zipped) {
+          t.ok(bufferEqual(assets['/cat'].data, zipped), 'cat asset data should match')
 
-          instance._assetForRoute('/cat', function (err, asset) {
-            t.ifError(err, '[fs] no cat image read error')
-            t.ok(bufferEqual(asset[1].data, data), '[fs] cat asset data should match')
-            t.equal(asset[1].header['content-type'], 'image/jpeg', '[fs] cat content-type should be image/jpeg')
-            t.equal(asset[1].header['content-length'], '24894', '[fs] cat content-length should be 24894')
+          t.equal(assets['/cat'].header['content-type'], 'image/jpeg', 'cat content-type should be image/jpeg')
+          t.equal(assets['/cat'].header['content-length'], '24462', 'cat content-length should be 24462')
+
+          // assert on the filesystem
+          instance._hasAssetForRoute('/cat', function (exists) {
+            t.ok(exists, '[fs] cat asset should exist on filesystem')
+
+            instance._assetForRoute('/cat', function (err, asset) {
+              t.ifError(err, '[fs] no cat image read error')
+              t.ok(bufferEqual(asset[1].data, zipped), '[fs] cat asset data should match')
+              t.equal(asset[1].header['content-type'], 'image/jpeg', '[fs] cat content-type should be image/jpeg')
+              t.equal(asset[1].header['content-length'], '24462', '[fs] cat content-length should be 24462')
+            })
           })
         })
       })
@@ -91,15 +99,17 @@ test('should preload assets and save them to disk', function (t) {
     t.ifError(err, 'no writeAssets error')
 
     fs.readFile(path.join(__dirname, 'cat.jpg'), function (err, data) {
-      // assert on the filesystem
-      instance._hasAssetForRoute('/cat', function (exists) {
-        t.ok(exists, '[fs] cat asset should exist on filesystem')
+      zlib.gzip(data, function (err, zipped) {
+        // assert on the filesystem
+        instance._hasAssetForRoute('/cat', function (exists) {
+          t.ok(exists, '[fs] cat asset should exist on filesystem')
 
-        instance._assetForRoute('/cat', function (err, asset) {
-          t.ifError(err, '[fs] no cat image read error')
-          t.ok(bufferEqual(asset[1].data, data), '[fs] cat asset data should match')
-          t.equal(asset[1].header['content-type'], 'image/jpeg', '[fs] cat content-type should be image/jpeg')
-          t.equal(asset[1].header['content-length'], '24894', '[fs] cat content-length should be 24894')
+          instance._assetForRoute('/cat', function (err, asset) {
+            t.ifError(err, '[fs] no cat image read error')
+            t.ok(bufferEqual(asset[1].data, zipped), '[fs] cat asset data should match')
+            t.equal(asset[1].header['content-type'], 'image/jpeg', '[fs] cat content-type should be image/jpeg')
+            t.equal(asset[1].header['content-length'], '24462', '[fs] cat content-length should be 24462')
+          })
         })
       })
     })
@@ -151,16 +161,18 @@ function runServeFromDiskTestWithAppArgument (t, appArgument) {
       .end(function (err, res) {
         t.ifError(err, 'no cat route error')
         t.equal(res.header['content-type'], 'image/jpeg', 'cat content-type should be image/jpeg')
-        t.equal(res.header['content-length'], '24894', 'cat content-length should be 24894')
+        t.equal(res.header['content-length'], '24462', 'cat content-length should be 24462')
 
 
         fs.readFile(path.join(__dirname, 'cat.jpg'), function (err, data) {
-          t.ifError(err, 'no cat image read error')
-          t.ok(bufferEqual(res.body, data), 'cat asset data should match')
+          zlib.gzip(data, function (err, zipped) {
+            t.ifError(err, 'no cat image read error')
+            t.ok(bufferEqual(res.body, zipped), 'cat asset data should match')
 
-          // restore the old method before leaving
-          handler.serveCat = oldServeCat
-          t.pass('restored old function')
+            // restore the old method before leaving
+            handler.serveCat = oldServeCat
+            t.pass('restored old function')
+          })
         })
       })
 
@@ -176,7 +188,7 @@ function runServeFromDiskTestWithAppArgument (t, appArgument) {
             cat: {
               source: '/cat'
             , destination: 'cat'
-            , checksum: '0ed846a2fb283a2b31e54f68769145a0'
+            , checksum: '6db41b6f103fea20eb29ba09345f17ca'
             }
             , fish: {
               source: '/fish'

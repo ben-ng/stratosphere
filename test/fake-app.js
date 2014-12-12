@@ -1,6 +1,7 @@
 var url = require('url')
   , fs = require('fs')
   , path = require('path')
+  , zlib = require('zlib')
 
 function serveCat (res) {
   fs.readFile(path.join(__dirname, 'cat.jpg'), function (err, data) {
@@ -9,8 +10,16 @@ function serveCat (res) {
       res.end()
     }
     else {
-      res.writeHead(200, {'Content-Type': 'image/jpeg', 'Content-Length': data.length})
-      res.end(data)
+      zlib.gzip(data, function (err, zipped) {
+        if(err) {
+          res.writeHead(400)
+          res.end()
+        }
+        else {
+          res.writeHead(200, {'Content-Type': 'image/jpeg', 'Content-Length': zipped.length})
+          res.end(zipped)
+        }
+      })
     }
   })
 }
