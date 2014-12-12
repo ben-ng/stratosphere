@@ -66,16 +66,30 @@ Stratosphere.prototype._initialize = function initialize (cb) {
 
   async.waterfall([
     // read the assets JSON file
-    async.apply(fs.readFile, opts.assets)
-
+    function (next) {
+      fs.readFile(opts.assets, function (err, data) {
+        next(null, data)
+      })
+    }
     // turn the buffer into an array
   , function parseAssetFile (assetData, next) {
       var assetArray
+        , parseError
+
       try {
         assetArray = JSON.parse(assetData.toString())
       }
       catch(e) {
-        return next(e)
+        parseError = e
+      }
+
+      if(parseError) {
+        try {
+          assetArray = require(opts.assets)
+        }
+        catch(e) {
+          return next(new Error('Could neither parse opts.assets as JSON nor require it as JS: ' + e))
+        }
       }
 
       if(!_.isArray(assetArray))

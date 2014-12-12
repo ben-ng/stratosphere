@@ -8,6 +8,11 @@ Shrink wrap your dynamically generated assets. If you use tools like browserify 
 ## Usage
 
 ```js
+```
+
+## Full Usage
+
+```js
 var stratosphere = require('stratosphere')
 
 // app is your request handler OR a http server. your choice!
@@ -54,7 +59,8 @@ var instance = stratosphere(app, opts, function (err, assets) {
                       console.log('Preloading complete')
 
                     // assets is an object containing the preloaded assets
-                    // {'route/1': 'asset data', 'route/2': 'dat'} etc...
+                    // note the leading slashes -- routes are normalized
+                    // {'/route/1': 'asset data', '/route/2': 'dat'} etc...
                   })
 
 // If your `app` argument was a server, the `intercept` method will modify
@@ -73,6 +79,8 @@ instance.writeAssets(function (err) {
 ```
 
 ## The Assets File
+
+You can either use a JSON file, or a `.js` file that exports an array.
 
 ```js
 // If you serve lots of static assets like fonts, it might be helpful

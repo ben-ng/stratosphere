@@ -82,7 +82,7 @@ test('should preload assets and save them to disk', function (t) {
   }
 
   var instance = stratosphere(http.createServer(handler), {
-                  assets: path.join(__dirname, 'fake-assets.json')
+                  assets: path.join(__dirname, 'fake-assets.js')
                 , root: path.join(__dirname, 'tmp')
                 , preload: true
                 }, afterPreload)
