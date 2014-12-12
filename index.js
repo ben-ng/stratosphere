@@ -172,8 +172,7 @@ Stratosphere.prototype._readAllAssets = function readAllAssets (cb) {
 
   self._onAssetsRead(function () {
     // fetch each asset declared in the array
-    async.mapLimit(self.assetArray
-      , 4
+    async.mapSeries(self.assetArray
       , function (asset, next) {
           self._assetForRoute(asset.source, function (err, data) {
             if(err)
@@ -218,7 +217,7 @@ Stratosphere.prototype.writeAssets = function writeAssets (cb) {
       }
     }
 
-    async.parallelLimit(_.map(assets, mapAsset), 5, function (err) {
+    async.series(_.map(assets, mapAsset), function (err) {
       cb(err)
     })
   })
