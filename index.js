@@ -124,6 +124,8 @@ Stratosphere.prototype._initialize = function initialize (cb) {
         l.apply(self)
       })
 
+      self.onAssetsReadWaitlist = []
+
       next(null)
     }
 
@@ -296,26 +298,57 @@ Stratosphere.prototype._hasAssetForRoute = function hasAssetForRoute (route, cb)
   })
 }
 
+Stratosphere.prototype._proxyHandler = function proxyHandler (handler) {
+  var self = this
+    , manifestRoute = self.opts.route ? normalize(self.opts.route) : false
+
+  return function (req, res) {
+    var href = url.parse(req.url).href
+
+    if(manifestRoute && href == manifestRoute) {
+      self._respondWithManifest(res)
+    }
+    else {
+      self._onAssetsRead(function () {
+        if(!self.assetMap[href]) {
+          handler(req, res)
+        }
+        else {
+          self._assetForRoute(href, function (err, asset) {
+            if(err) {
+              handler(req, res)
+            }
+            else {
+              res.writeHead(200, asset[1].header)
+              res.end(asset[1].data)
+            }
+          })
+        }
+      })
+    }
+  }
+}
+
 Stratosphere.prototype.intercept = function intercept () {
-  var serverOrHandler = this.app
+  var app = this.app
+    , serverOrHandler = app
 
   if(this.opts.disable)
-    return this.app
+    return app
 
   if(serverOrHandler instanceof http.Server) {
-    var handlers = serverOrHandler.listeners('request')
-      , i
-      , ii
+    var handlers = serverOrHandler.listeners('request').slice(0)
+      , replacementHandler
 
-    for(i=0, ii=handlers.length; i<ii; ++i) {
-      handlers[i] = this._proxyHandler(handlers[i])
-    }
+    replacementHandler = this._proxyHandler(function (req, res) {
+      for(var i=0, ii=handlers.length; i<ii; ++i) {
+        handlers[i].call(app, req, res)
+      }
+    })
 
     serverOrHandler.removeAllListeners('request')
+    serverOrHandler.on('request', replacementHandler)
 
-    for(i=0, ii=handlers.length; i<ii; ++i) {
-      serverOrHandler.addListener('request', handlers[i])
-    }
 
     return serverOrHandler
   }
@@ -397,37 +430,6 @@ Stratosphere.prototype._respondWithManifest = function respondWithManifest (res)
       res.end(respJSON)
     }
   })
-}
-
-Stratosphere.prototype._proxyHandler = function proxyHandler (handler) {
-  var self = this
-    , manifestRoute = self.opts.route ? normalize(self.opts.route) : false
-
-  return function (req, res) {
-    var href = url.parse(req.url).href
-
-    if(manifestRoute && href == manifestRoute) {
-      self._respondWithManifest(res)
-    }
-    else {
-      self._onAssetsRead(function () {
-        if(!self.assetMap[href]) {
-          handler(req, res)
-        }
-        else {
-          self._assetForRoute(href, function (err, asset) {
-            if(err) {
-              handler(req, res)
-            }
-            else {
-              res.writeHead(200, asset[1].header)
-              res.end(asset[1].data)
-            }
-          })
-        }
-      })
-    }
-  }
 }
 
 function ConstructStratosphere (app, useropts, cb) {
