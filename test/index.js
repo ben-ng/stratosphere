@@ -6,6 +6,7 @@ var test = require('tape')
   , http = require('http')
   , rimraf = require('rimraf')
   , fs = require('fs')
+  , zlib = require('zlib')
   , bufferEqual = require('buffer-equal')
 
 test('[start] should clean up the tmp directory', function (t) {
@@ -60,27 +61,29 @@ test('should preload assets and save them to disk', function (t) {
       fs.readFile(path.join(__dirname, 'cat.jpg'), function (err, data) {
         t.ifError(err, 'no cat image read error')
 
-        t.ok(bufferEqual(assets['/cat'].data, data), 'cat asset data should match')
+        zlib.gzip(data, function (err, min) {
+          t.ok(bufferEqual(assets['/cat'].data, min), 'cat asset data should match')
 
-        t.equal(assets['/cat'].header['content-type'], 'image/jpeg', 'cat content-type should be image/jpeg')
-        t.equal(assets['/cat'].header['content-length'], '24462', 'cat content-length should be 24462')
+          // assert on the filesystem
+          instance._hasAssetForRoute('/cat', function (exists) {
+            t.ok(exists, '[fs] cat asset should exist on filesystem')
 
-        // assert on the filesystem
-        instance._hasAssetForRoute('/cat', function (exists) {
-          t.ok(exists, '[fs] cat asset should exist on filesystem')
-
-          instance._assetForRoute('/cat', function (err, asset) {
-            t.ifError(err, '[fs] no cat image read error')
-            t.ok(bufferEqual(asset[1].data, data), '[fs] cat asset data should match')
-            t.equal(asset[1].header['content-type'], 'image/jpeg', '[fs] cat content-type should be image/jpeg')
-            t.equal(asset[1].header['content-length'], '24462', '[fs] cat content-length should be 24462')
+            instance._assetForRoute('/cat', function (err, asset) {
+              t.ifError(err, '[fs] no cat image read error')
+              t.ok(bufferEqual(asset[1].data, min), '[fs] cat asset data should match')
+              t.equal(asset[1].header['content-type'], 'image/jpeg', '[fs] cat content-type should be image/jpeg')
+              t.equal(asset[1].header['content-length'], 24462, '[fs] cat content-length should be 24462')
+            })
           })
         })
+
+        t.equal(assets['/cat'].header['content-type'], 'image/jpeg', 'cat content-type should be image/jpeg')
+        t.equal(assets['/cat'].header['content-length'], 24462, 'cat content-length should be 24462')
       })
 
       t.equal(assets['/fish'].data.toString(), 'fish', 'fish asset should have data "fish"')
       t.equal(assets['/fish'].header['content-type'], 'text/plain', 'fish content-type should be text/plain')
-      t.equal(assets['/fish'].header['content-length'], '4', 'fish content-length should be four')
+      t.equal(assets['/fish'].header['content-length'], 4, 'fish content-length should be four')
     }
   }
 
@@ -94,15 +97,17 @@ test('should preload assets and save them to disk', function (t) {
     t.ifError(err, 'no writeAssets error')
 
     fs.readFile(path.join(__dirname, 'cat.jpg'), function (err, data) {
-      // assert on the filesystem
-      instance._hasAssetForRoute('/cat', function (exists) {
-        t.ok(exists, '[fs] cat asset should exist on filesystem')
+      zlib.gzip(data, function (err, min) {
+        // assert on the filesystem
+        instance._hasAssetForRoute('/cat', function (exists) {
+          t.ok(exists, '[fs] cat asset should exist on filesystem')
 
-        instance._assetForRoute('/cat', function (err, asset) {
-          t.ifError(err, '[fs] no cat image read error')
-          t.ok(bufferEqual(asset[1].data, data), '[fs] cat asset data should match')
-          t.equal(asset[1].header['content-type'], 'image/jpeg', '[fs] cat content-type should be image/jpeg')
-          t.equal(asset[1].header['content-length'], '24462', '[fs] cat content-length should be 24462')
+          instance._assetForRoute('/cat', function (err, asset) {
+            t.ifError(err, '[fs] no cat image read error')
+            t.ok(bufferEqual(asset[1].data, min), '[fs] cat asset data should match')
+            t.equal(asset[1].header['content-type'], 'image/jpeg', '[fs] cat content-type should be image/jpeg')
+            t.equal(asset[1].header['content-length'], 24462, '[fs] cat content-length should be 24462')
+          })
         })
       })
     })
@@ -115,7 +120,7 @@ test('should preload assets and save them to disk', function (t) {
         t.ok(Buffer.isBuffer(asset[1].data), '[fs] fish asset should have a data buffer')
         t.equal(asset[1].data.toString(), 'fish', '[fs] fish asset should have data "fish"')
         t.equal(asset[1].header['content-type'], 'text/plain', '[fs] fish content-type should be text/plain')
-        t.equal(asset[1].header['content-length'], '4', '[fs] fish content-length should be four')
+        t.equal(asset[1].header['content-length'], 4, '[fs] fish content-length should be four')
       })
     })
   })

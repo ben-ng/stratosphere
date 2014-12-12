@@ -9,6 +9,7 @@ var fs = require('fs')
   , mkdirp = require('mkdirp')
   , rimraf = require('rimraf')
   , http = require('http')
+  , zlib = require('zlib')
   , defaults = {
       route: 'manifest.json'
     , preload: false
@@ -202,28 +203,13 @@ Stratosphere.prototype.writeAssets = function writeAssets (cb) {
     function writeAsset (tuple, next) {
 
       var data = Buffer.isBuffer(tuple[1].data) ? tuple[1].data : new Buffer(tuple[1].data)
-        , finish = function () {
-            var headers = JSON.stringify(tuple[1].header)
-              , paddedHeaderLength = new Buffer(pad(headerLengthLength, '' + Buffer.byteLength(headers), '0'))
-              , headerBuffer = new Buffer(headers)
-              , assetData = Buffer.concat([paddedHeaderLength, headerBuffer, data])
-              , routeHash = hash(normalize(tuple[0]))
+        , headers = JSON.stringify(tuple[1].header)
+        , paddedHeaderLength = new Buffer(pad(headerLengthLength, '' + Buffer.byteLength(headers), '0'))
+        , headerBuffer = new Buffer(headers)
+        , assetData = Buffer.concat([paddedHeaderLength, headerBuffer, data])
+        , routeHash = hash(normalize(tuple[0]))
 
-            fs.writeFile(path.join(opts.root, routeHash), assetData, next)
-          }
-
-      if(tuple[1].header['content-encoding'] && tuple[1].header['content-encoding'].indexOf('gzip') > -1) {
-        require('zlib').gzip(data, function (err, mindata) {
-          if(err)
-            return cb(err)
-
-          data = mindata
-          finish()
-        })
-      }
-      else {
-        finish()
-      }
+      fs.writeFile(path.join(opts.root, routeHash), assetData, next)
     }
 
     function mapAsset (tuple) {
@@ -261,24 +247,46 @@ Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
                 .expect(200)
                 .end(function (err, res) {
                   var dataBuffer
+                    , finish
 
                   if(err) {
                     cb(err)
                   }
                   else {
+                    header = _.clone(res.header)
+
+                    // supertest expands our data, so we need to compress it again
+                    finish = function () {
+                      header['content-length'] = parseInt(header['content-length'], 10)
+
+                      routeData = {
+                        header: header
+                      , data: dataBuffer
+                      }
+
+                      self.assetCache[route] = routeData
+
+                      cb(null, [route, routeData])
+                    }
+
                     dataBuffer = _.isEmpty(res.body) ? res.text : res.body
 
                     if(!Buffer.isBuffer(dataBuffer))
                       dataBuffer = new Buffer(dataBuffer)
 
-                    routeData = {
-                      header: _.clone(res.header)
-                    , data: dataBuffer
+                    if(header['content-encoding'] && header['content-encoding'].indexOf('gzip') > -1) {
+                      zlib.gzip(dataBuffer, function (err, min) {
+                        if(err)
+                          return cb(err)
+
+                        dataBuffer = min
+                        header['content-length'] = min.length
+                        finish()
+                      })
                     }
-
-                    self.assetCache[route] = routeData
-
-                    cb(null, [route, routeData])
+                    else {
+                      finish()
+                    }
                   }
                 })
       }
@@ -293,6 +301,8 @@ Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
         catch(e) {
           return cb(e)
         }
+
+        header['content-length'] = parseInt(header['content-length'], 10)
 
         routeData = {
           header: header
