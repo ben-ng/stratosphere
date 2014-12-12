@@ -1,6 +1,8 @@
 Stratosphere
 ------------
 
+[![Build Status](https://travis-ci.org/ben-ng/stratosphere.png?branch=master)](https://travis-ci.org/ben-ng/stratosphere)
+
 Shrink wrap your dynamically generated assets. If you use tools like browserify to build your front-end code, you should consider saving the output to disk as part of your deploy process. This allows you to freeze an entire version of your app inside a container like Docker and test the release with confidence that things will not change in the future because the app was built with a different browserify version, or in a different environment.
 
 ## Usage
@@ -54,6 +56,11 @@ instance.intercept().listen(8080)
 // If your `app` argument was a request handler, the `intercept` method will create a new handler
 // function and return it.
 http.createServer(instance.intercept()).listen(8080)
+
+// If you want to write your assets to disk:
+instance.writeAssets(function (err) {
+  // Handle the error
+})
 ```
 
 ## The Assets File
