@@ -34,6 +34,7 @@
     "supertest": "^0.15.0"
   },
   "devDependencies": {
+    "buffer-equal": "0.0.1",
     "tape": "^3.0.3"
   }
 }
