@@ -169,7 +169,7 @@ Stratosphere.prototype._readAllAssets = function readAllAssets (cb) {
 
   self._onAssetsRead(function () {
     // fetch each asset declared in the array
-    async.parallelLimit(self.assetArray
+    async.mapLimit(self.assetArray
       , 4
       , function (asset, next) {
           self._assetForRoute(asset.source, function (err, data) {
@@ -410,7 +410,6 @@ Stratosphere.prototype._proxyHandler = function proxyHandler (handler) {
       self._respondWithManifest(res)
     }
     else {
-
       self._onAssetsRead(function () {
         if(!self.assetMap[href]) {
           handler(req, res)
