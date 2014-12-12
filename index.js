@@ -308,6 +308,9 @@ Stratosphere.prototype._proxyHandler = function proxyHandler (handler) {
     if(manifestRoute && href == manifestRoute) {
       self._respondWithManifest(res)
     }
+    else if(req.headers['user-agent'].indexOf('node-superagent') > -1) {
+      handler(req, res)
+    }
     else {
       self._onAssetsRead(function () {
         if(!self.assetMap[href]) {
@@ -348,7 +351,6 @@ Stratosphere.prototype.intercept = function intercept () {
 
     serverOrHandler.removeAllListeners('request')
     serverOrHandler.on('request', replacementHandler)
-
 
     return serverOrHandler
   }
