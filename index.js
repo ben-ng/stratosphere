@@ -361,6 +361,11 @@ Stratosphere.prototype._proxyHandler = function proxyHandler (handler) {
   }
 }
 
+Stratosphere.prototype.flush = function flush () {
+  this.assetCache = {}
+  this.defaultManifest = null
+}
+
 Stratosphere.prototype.intercept = function intercept () {
   var app = this.app
     , serverOrHandler = app

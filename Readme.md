@@ -86,6 +86,9 @@ http.createServer(instance.intercept()).listen(8080)
 instance.writeAssets(function (err) {
   // Handle the error
 })
+
+// To flush the asset cache that is in memory (not the one on disk!)
+instance.flush()
 ```
 
 ## The Assets File
