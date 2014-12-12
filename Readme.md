@@ -5,9 +5,19 @@ Stratosphere
 
 Shrink wrap your dynamically generated assets. If you use tools like browserify to build your front-end code, you should consider saving the output to disk as part of your deploy process. This allows you to freeze an entire version of your app inside a container like Docker and test the release with confidence that things will not change in the future because the app was built with a different browserify version, or in a different environment.
 
-## Usage
+## Quick Usage
 
 ```js
+
+// See Full Usage for all options
+var instance = stratosphere(app, {assets: 'assets.json', root: 'cachedir'})
+
+// Save assets to disk
+instance.writeAssets(function () {
+  // Intercept requests for assets and serve from memory
+  instance.intercept().listen(8080)
+})
+
 ```
 
 ## Full Usage
