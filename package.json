@@ -1,6 +1,6 @@
 {
   "name": "stratosphere",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Shrink wrap your dynamically generated assets",
   "main": "index.js",
   "scripts": {
