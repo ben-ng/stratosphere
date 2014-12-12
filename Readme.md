@@ -1,14 +1,14 @@
 Stratosphere
 ------------
 
-Shrink wrap your dynamically generated assets. If you use tools like browserify to build your front-end code, you should consider saving the output to disk as part of your deploy process. This allows you to freeze and entire version of your app inside a container like Docker and test the release with confidence that things will not change in the future because the app was built with a different browserify version, or in a different environment.
+Shrink wrap your dynamically generated assets. If you use tools like browserify to build your front-end code, you should consider saving the output to disk as part of your deploy process. This allows you to freeze an entire version of your app inside a container like Docker and test the release with confidence that things will not change in the future because the app was built with a different browserify version, or in a different environment.
 
 ## Usage
 
 ```js
 var stratosphere = require('stratosphere')
 
-// app is your request handler
+// app is your request handler OR a http server. your choice!
 var app = require('./your-app')
 
 // Stratosphere options
@@ -27,19 +27,33 @@ var opts = {
 
       // When true, will disable Stratosphere, passing all requests straight to the app. Default: false.
     , disable: false
+
+      // When true, will not empty the root asset directory on initialization. Default: false.
+    , noFlush: false
+
+      // Used to override manifest defaults. Default: {}.
+    , manifestOpts: {version: '1.0.0'}
     }
 
 // Stratosphere wraps your request handler using the rules in your manifest
 // The callback is optional, and will be called if preload == true when preloading is complete
-var wrappedApp = stratosphere(app, opts, function (err) {
+var instance = stratosphere(app, opts, function (err, assets) {
                     if(err)
                       console.error(err)
                     else
                       console.log('Preloading complete')
+
+                    // assets is an object containing the preloaded assets
+                    // {'route/1': 'asset data', 'route/2': 'dat'} etc...
                   })
 
-// Create your server as usual. Stratosphere will intercept requests for your assets and serve them from disk.
-server = http.createServer(wrappedApp).listen(process.env.PORT)
+// If your `app` argument was a server, the `intercept` method will modify its `request` listeners
+// to respond with cached data from the filesystem when possible, and return the same server
+instance.intercept().listen(8080)
+
+// If your `app` argument was a request handler, the `intercept` method will create a new handler
+// function and return it.
+http.createServer(instance.intercept()).listen(8080)
 ```
 
 ## The Assets File
@@ -49,8 +63,9 @@ server = http.createServer(wrappedApp).listen(process.env.PORT)
 var fonts = require('glob').sync('./fonts/*')
 
 // Should export an array of strings that represent routes on the server
+// Routes without a leading slash will be have one added to them
 module.exports = [
-  'app/bundle.js'
+  '/app/bundle.js'
 ].concat(fonts)
 ```
 
