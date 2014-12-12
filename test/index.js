@@ -158,6 +158,7 @@ function runServeFromDiskTestWithAppArgument (t, appArgument) {
 
     request(interception)
       .get('/cat')
+      .set('User-Agent', 'Test-Agent')
       .end(function (err, res) {
         t.ifError(err, 'no cat route error')
         t.equal(res.header['content-type'], 'image/jpeg', 'cat content-type should be image/jpeg')
