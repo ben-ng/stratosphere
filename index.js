@@ -45,6 +45,7 @@ function Stratosphere (app, useropts, cb) {
   this.app = app
   this.assetCache = {}
   this.assetArray = null
+  this.assetMap = null
   this.onAssetsReadWaitlist = []
   this.assetsRead = false // set to true when assetArray is done
 
@@ -116,6 +117,7 @@ Stratosphere.prototype._initialize = function initialize (cb) {
       })
 
       self.assetArray = assetArray
+      self.assetMap = _(assetArray).map(function (asset) {return [asset.source, true]}).object().value()
       self.assetsRead = true
 
       _.each(self.onAssetsReadWaitlist, function (l) {
@@ -167,7 +169,8 @@ Stratosphere.prototype._readAllAssets = function readAllAssets (cb) {
 
   self._onAssetsRead(function () {
     // fetch each asset declared in the array
-    async.map(self.assetArray
+    async.parallelLimit(self.assetArray
+      , 4
       , function (asset, next) {
           self._assetForRoute(asset.source, function (err, data) {
             if(err)
@@ -237,6 +240,7 @@ Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
         // try to get it from the route
         supertest(app)
                 .get(route)
+                .timeout(10 * 60 * 1000)
                 .expect(200)
                 .end(function (err, res) {
                   var dataBuffer
@@ -406,13 +410,21 @@ Stratosphere.prototype._proxyHandler = function proxyHandler (handler) {
       self._respondWithManifest(res)
     }
     else {
-      self._assetForRoute(href, function (err, asset) {
-        if(err) {
+
+      self._onAssetsRead(function () {
+        if(!self.assetMap[href]) {
           handler(req, res)
         }
         else {
-          res.writeHead(200, asset[1].header)
-          res.end(asset[1].data)
+          self._assetForRoute(href, function (err, asset) {
+            if(err) {
+              handler(req, res)
+            }
+            else {
+              res.writeHead(200, asset[1].header)
+              res.end(asset[1].data)
+            }
+          })
         }
       })
     }
