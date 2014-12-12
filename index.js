@@ -271,6 +271,10 @@ Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
 
                     dataBuffer = _.isEmpty(res.body) ? res.text : res.body
 
+                    // JSON!
+                    if(typeof dataBuffer == 'object' && !Buffer.isBuffer(dataBuffer))
+                      dataBuffer = JSON.stringify(dataBuffer)
+
                     if(!Buffer.isBuffer(dataBuffer))
                       dataBuffer = new Buffer(dataBuffer)
 
