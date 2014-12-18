@@ -42,10 +42,6 @@ var opts = {
       // Optional.
     , route: 'manifest.json'
 
-      // When true, will immediately request all your assets and cache them.
-      // Default: false.
-    , preload: false
-
       // When true, will disable Stratosphere, passing all requests
       // straight to the app.
       // Default: false.
@@ -85,6 +81,11 @@ http.createServer(instance.intercept()).listen(8080)
 // If you want to write your assets to disk:
 instance.writeAssets(function (err) {
   // Handle the error
+})
+
+// If you want to load all assets into memory
+instance.preload(function (err, assets, manifest) {
+
 })
 
 // To flush the asset cache that is in memory (not the one on disk!)

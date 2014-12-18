@@ -12,7 +12,6 @@ var fs = require('fs')
   , zlib = require('zlib')
   , defaults = {
       route: 'manifest.json'
-    , preload: false
     , noFlush: false
     , disable: false
     , manifestOpts: {}
@@ -39,7 +38,7 @@ function hash (route) {
                 .digest('hex')
 }
 
-function Stratosphere (app, useropts, cb) {
+function Stratosphere (app, useropts) {
   var opts = _.defaults(useropts, defaults)
 
   this.opts = opts
@@ -55,14 +54,14 @@ function Stratosphere (app, useropts, cb) {
     if(!opts.root) { throw new Error('opts.root is required') }
     if(!opts.assets) { throw new Error('opts.assets is required') }
 
-    this._initialize(cb)
+    this._initialize()
   }
 }
 
 /*
 * Instance methods
 */
-Stratosphere.prototype._initialize = function initialize (cb) {
+Stratosphere.prototype._initialize = function initialize () {
   var self = this
     , opts = this.opts
 
@@ -145,18 +144,22 @@ Stratosphere.prototype._initialize = function initialize (cb) {
       }
     }
 
-  , function preload (next) {
-      if(!opts.preload)
-        return next(null)
-
-      self._readAllAssets(next)
-    }
-
-  ], function (err, assets) {
-    if(cb)
-      cb(err, assets)
-    else if (err)
+  ], function (err) {
+    if (err)
       throw err
+  })
+}
+
+Stratosphere.prototype.preload = function preload (cb) {
+  var self = this
+
+  this._readAllAssets(function (err, assets) {
+    if(err)
+      return cb(err)
+
+    self.getManifest(function (err, manifest) {
+      cb(err, assets, manifest)
+    })
   })
 }
 

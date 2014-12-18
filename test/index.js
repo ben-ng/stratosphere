@@ -50,10 +50,15 @@ test('should do nothing when disabled', function (t) {
                   })
 })
 
-test('should preload assets and save them to disk', function (t) {
-  t.plan(25)
+test('should preload assets', function (t) {
+  t.plan(13)
 
-  function afterPreload (err, assets) {
+  var instance = stratosphere(http.createServer(handler), {
+                  assets: path.join(__dirname, 'fake-assets.js')
+                , root: path.join(__dirname, 'tmp')
+                })
+
+  instance.preload(function (err, assets) {
     t.ifError(err, 'no preload error')
 
     if(!err) {
@@ -70,9 +75,9 @@ test('should preload assets and save them to disk', function (t) {
 
             instance._assetForRoute('/cat', function (err, asset) {
               t.ifError(err, '[fs] no cat image read error')
-              t.ok(bufferEqual(asset[1].data, min), '[fs] cat asset data should match')
-              t.equal(asset[1].header['content-type'], 'image/jpeg', '[fs] cat content-type should be image/jpeg')
-              t.equal(asset[1].header['content-length'], 24462, '[fs] cat content-length should be 24462')
+              t.ok(bufferEqual(asset[1].data, min), 'cat asset data should match')
+              t.equal(asset[1].header['content-type'], 'image/jpeg', 'cat content-type should be image/jpeg')
+              t.equal(asset[1].header['content-length'], 24462, 'cat content-length should be 24462')
             })
           })
         })
@@ -85,44 +90,6 @@ test('should preload assets and save them to disk', function (t) {
       t.equal(assets['/fish'].header['content-type'], 'text/plain', 'fish content-type should be text/plain')
       t.equal(assets['/fish'].header['content-length'], 4, 'fish content-length should be four')
     }
-  }
-
-  var instance = stratosphere(http.createServer(handler), {
-                  assets: path.join(__dirname, 'fake-assets.js')
-                , root: path.join(__dirname, 'tmp')
-                , preload: true
-                }, afterPreload)
-
-  instance.writeAssets(function (err) {
-    t.ifError(err, 'no writeAssets error')
-
-    fs.readFile(path.join(__dirname, 'cat.jpg'), function (err, data) {
-      zlib.gzip(data, function (err, min) {
-        // assert on the filesystem
-        instance._hasAssetForRoute('/cat', function (exists) {
-          t.ok(exists, '[fs] cat asset should exist on filesystem')
-
-          instance._assetForRoute('/cat', function (err, asset) {
-            t.ifError(err, '[fs] no cat image read error')
-            t.ok(bufferEqual(asset[1].data, min), '[fs] cat asset data should match')
-            t.equal(asset[1].header['content-type'], 'image/jpeg', '[fs] cat content-type should be image/jpeg')
-            t.equal(asset[1].header['content-length'], 24462, '[fs] cat content-length should be 24462')
-          })
-        })
-      })
-    })
-
-    instance._hasAssetForRoute('/fish', function (exists) {
-      t.ok(exists, '[fs] fish asset should exist on filesystem')
-
-      instance._assetForRoute('/fish', function (err, asset) {
-        t.ifError(err, '[fs] no fish asset read error')
-        t.ok(Buffer.isBuffer(asset[1].data), '[fs] fish asset should have a data buffer')
-        t.equal(asset[1].data.toString(), 'fish', '[fs] fish asset should have data "fish"')
-        t.equal(asset[1].header['content-type'], 'text/plain', '[fs] fish content-type should be text/plain')
-        t.equal(asset[1].header['content-length'], 4, '[fs] fish content-length should be four')
-      })
-    })
   })
 })
 
@@ -136,21 +103,20 @@ function runServeFromDiskTestWithAppArgument (t, appArgument) {
   var instance = stratosphere(appArgument, {
                   assets: path.join(__dirname, 'fake-assets.json')
                 , root: path.join(__dirname, 'tmp')
-                , preload: false
-                , noFlush: true
                 , manifestOpts: {message: 'Override'}
+                , route: 'version.json'
                 })
     , oldServeCat = handler.serveCat
     , interception
 
-  handler.serveCat = function proxiedServeCat (res) {
-    res.writeHead(400)
-    res.end()
-    t.fail('should not have called the handler method')
-  }
-
   instance.writeAssets(function (err) {
     t.ifError(err)
+
+    handler.serveCat = function proxiedServeCat (res) {
+      res.writeHead(400)
+      res.end()
+      t.fail('should not have called the handler method')
+    }
 
     interception = instance.intercept()
 
@@ -175,7 +141,7 @@ function runServeFromDiskTestWithAppArgument (t, appArgument) {
       })
 
     request(interception)
-      .get('/manifest.json')
+      .get('/version.json')
       .expect(200)
       .expect('Content-Type', 'application/json')
       .end(function (err, res) {
