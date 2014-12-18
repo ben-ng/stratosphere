@@ -5,6 +5,7 @@ var fs = require('fs')
   , supertest = require('supertest')
   , _ = require('lodash')
   , pad = require('pad')
+  , concat = require('concat-stream')
   , crypto = require('crypto')
   , mkdirp = require('mkdirp')
   , rimraf = require('rimraf')
@@ -245,11 +246,14 @@ Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
         // try to get it from the route
         supertest(app)
                 .get(route)
+                .buffer(false)
                 .timeout(10 * 60 * 1000)
                 .expect(200)
                 .end(function (err, res) {
                   var dataBuffer
-                    , finish
+                    , afterGzippingIfNeeded
+                    , afterGettingBuffer
+                    , checksum
 
                   if(err) {
                     cb(err)
@@ -258,12 +262,13 @@ Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
                     header = _.clone(res.header)
 
                     // supertest expands our data, so we need to compress it again
-                    finish = function () {
+                    afterGzippingIfNeeded = function (dataBuffer) {
                       header['content-length'] = parseInt(header['content-length'], 10)
 
                       routeData = {
                         header: header
                       , data: dataBuffer
+                      , checksum: checksum
                       }
 
                       self.assetCache[route] = routeData
@@ -271,27 +276,56 @@ Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
                       cb(null, [route, routeData])
                     }
 
-                    dataBuffer = _.isEmpty(res.body) ? res.text : res.body
+                    afterGettingBuffer = function (dataBuffer) {
+
+                      if(!Buffer.isBuffer(dataBuffer))
+                        return cb(new Error('No data for route: ' + route))
+
+                      // do checksumming before gzipping the data
+                      checksum = crypto.createHash('md5')
+                                      .update(dataBuffer)
+                                      .digest('hex')
+
+                      if(header['content-encoding'] && header['content-encoding'].indexOf('gzip') > -1) {
+                        zlib.gzip(dataBuffer, function (err, min) {
+                          if(err)
+                            return cb(err)
+
+                          dataBuffer = min
+                          header['content-length'] = min.length
+                          afterGzippingIfNeeded(dataBuffer)
+                        })
+                      }
+                      else {
+                        afterGzippingIfNeeded(dataBuffer)
+                      }
+                    }
+
+                    if(!_.isEmpty(res.res.text))
+                      dataBuffer = res.res.text
+                    else if (!_.isEmpty(res.body))
+                      dataBuffer = res.body
+                    else
+                      dataBuffer = res.text
 
                     // JSON!
                     if(typeof dataBuffer == 'object' && !Buffer.isBuffer(dataBuffer))
                       dataBuffer = JSON.stringify(dataBuffer)
 
-                    if(!Buffer.isBuffer(dataBuffer))
+                    // JSON is stupid sometimes and comes back as an empty string
+                    if(typeof dataBuffer == 'string' && !dataBuffer.trim().length)
+                      dataBuffer = null
+
+                    if(!Buffer.isBuffer(dataBuffer) && typeof dataBuffer == 'string')
                       dataBuffer = new Buffer(dataBuffer)
 
-                    if(header['content-encoding'] && header['content-encoding'].indexOf('gzip') > -1) {
-                      zlib.gzip(dataBuffer, function (err, min) {
-                        if(err)
-                          return cb(err)
-
-                        dataBuffer = min
-                        header['content-length'] = min.length
-                        finish()
-                      })
+                    if(!dataBuffer) {
+                      res.pipe(concat(function (dataBuffer) {
+                        afterGettingBuffer(dataBuffer)
+                      }))
                     }
                     else {
-                      finish()
+                      afterGettingBuffer(dataBuffer)
                     }
                   }
                 })
@@ -420,14 +454,10 @@ Stratosphere.prototype._getDefaultManifest = function getDefaultManifest (cb) {
         return cb(err)
 
       var fileObject = _(self.assetArray).map(function (asset) {
-        var checksum = crypto.createHash('md5')
-                              .update(assets[asset.source].data)
-                              .digest('hex')
-
         return [asset.key, {
           source: asset.source
         , destination: asset.destination
-        , checksum: checksum
+        , checksum: assets[asset.source].checksum
         }]
       }).object().valueOf()
 

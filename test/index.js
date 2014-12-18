@@ -152,7 +152,7 @@ function runServeFromDiskTestWithAppArgument (t, appArgument) {
             cat: {
               source: '/cat'
             , destination: 'cat'
-            , checksum: '6db41b6f103fea20eb29ba09345f17ca'
+            , checksum: '0ed846a2fb283a2b31e54f68769145a0'
             }
             , fish: {
               source: '/fish'
