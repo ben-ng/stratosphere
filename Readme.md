@@ -25,7 +25,7 @@ instance.writeAssets(function () {
 ```js
 var stratosphere = require('stratosphere')
 
-// app is your request handler OR a http server. your choice!
+// app is your http server.
 var app = require('./your-app')
 
 // Stratosphere options
@@ -55,7 +55,7 @@ var opts = {
     , manifestOpts: {version: '1.0.0'}
     }
 
-// Stratosphere wraps your request handler using the rules in your manifest
+// Stratosphere wraps your server using the rules in your manifest
 // The callback is optional, and will be called if preload == true
 // when preloading is complete
 var instance = stratosphere(app, opts, function (err, assets) {
@@ -69,23 +69,32 @@ var instance = stratosphere(app, opts, function (err, assets) {
                     // {'/route/1': 'asset data', '/route/2': 'dat'} etc...
                   })
 
-// If your `app` argument was a server, the `intercept` method will modify
-// its `request` listeners to respond with cached data from the filesystem
-// when possible, and return the same server
+// The `intercept` method will modify its `request` listeners to respond
+// with cached data from the filesystem when possible, and return the server
 instance.intercept().listen(8080)
 
-// If your `app` argument was a request handler, the `intercept` method
-// will create a new handler function and return it.
-http.createServer(instance.intercept()).listen(8080)
 
-// If you want to write your assets to disk:
+/*
+* If you want to write your assets to disk
+*
+* Gotcha: Calling this method on a server that is not listening on any
+* ports will bind it to an ephremeral one. If you plan to use the server
+* to handle actual requests you'll want to bind it to a port before
+* calling this method.
+*/
 instance.writeAssets(function (err) {
   // Handle the error
 })
 
-// If you want to load all assets into memory
+/*
+* If you want to load all assets into memory
+*
+* Gotcha: Calling this method on a server that is not listening on any
+* ports will bind it to an ephremeral one. You almost definitely want
+* to call this only after binding your server to a port of your choice.
+*/
 instance.preload(function (err, assets, manifest) {
-
+  // Handle the error
 })
 
 // To flush the asset cache that is in memory (not the one on disk!)
