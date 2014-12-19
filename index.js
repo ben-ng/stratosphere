@@ -233,7 +233,7 @@ Stratosphere.prototype._appAddress = function () {
   var app = this.app
   var port = app.address().port
   var protocol = app instanceof https.Server ? 'https' : 'http'
-  return protocol + '://127.0.0.1:' + port
+  return protocol + '://0.0.0.0:' + port
 }
 
 Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
