@@ -36,6 +36,10 @@ function handler (req, res) {
       res.writeHead(200, {'Content-Type': 'text/plain', 'Content-Length': 4})
       res.end('fish')
       break
+    default:
+      var notfound = 'not found'
+      res.writeHead(404, {'Content-Type': 'text/plain', 'Content-Length': notfound.length})
+      res.end(notfound)
   }
 }
 

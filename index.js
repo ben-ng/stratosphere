@@ -11,6 +11,8 @@ var fs = require('fs')
   , rimraf = require('rimraf')
   , http = require('http')
   , zlib = require('zlib')
+  , request = require('request')
+  , https = require('https')
   , defaults = {
       route: 'manifest.json'
     , noFlush: false
@@ -206,7 +208,7 @@ Stratosphere.prototype.writeAssets = function writeAssets (cb) {
     function writeAsset (tuple, next) {
 
       var data = Buffer.isBuffer(tuple[1].data) ? tuple[1].data : new Buffer(tuple[1].data)
-        , headers = JSON.stringify(tuple[1].header)
+        , headers = JSON.stringify(tuple[1].headers)
         , paddedHeaderLength = new Buffer(pad(headerLengthLength, '' + Buffer.byteLength(headers), '0'))
         , headerBuffer = new Buffer(headers)
         , assetData = Buffer.concat([paddedHeaderLength, headerBuffer, data])
@@ -227,6 +229,14 @@ Stratosphere.prototype.writeAssets = function writeAssets (cb) {
   })
 }
 
+// Taken from supertest
+Stratosphere.prototype._appAddress = function () {
+  var app = this.app
+  var port = app.address().port
+  var protocol = app instanceof https.Server ? 'https' : 'http'
+  return protocol + '://127.0.0.1:' + port
+}
+
 Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
   route = normalize(route)
 
@@ -243,111 +253,89 @@ Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
   else {
     fs.readFile(assetPath, function (err, data) {
       if(err) {
-        // try to get it from the route
-        supertest(app)
-                .get(route)
-                .buffer(false)
-                .timeout(10 * 60 * 1000)
-                .expect(200)
-                .end(function (err, res) {
-                  var dataBuffer
-                    , afterGzippingIfNeeded
-                    , afterGettingBuffer
-                    , checksum
+        function makeRequest () {
+          // try to get it from the route
+          request({
+            uri: self._appAddress() + route
+          , gzip: true
+          , encoding: null
+          , headers: {'user-agent': 'stratosphere'}
+          }, function (err, res, body) {
+            var dataBuffer
+              , afterGzippingIfNeeded
+              , afterGettingBuffer
+              , checksum
+              , headers
 
-                  if(err) {
-                    cb(err)
-                  }
-                  else {
-                    header = _.clone(res.header)
+            if(err) {
+              cb(err)
+            }
+            else {
+              headers = _.clone(res.headers)
 
-                    // supertest expands our data, so we need to compress it again
-                    afterGzippingIfNeeded = function (dataBuffer) {
-                      header['content-length'] = parseInt(header['content-length'], 10)
+              // supertest expands our data, so we need to compress it again
+              afterGzippingIfNeeded = function (dataBuffer) {
+                headers['content-length'] = parseInt(headers['content-length'], 10)
 
-                      routeData = {
-                        header: header
-                      , data: dataBuffer
-                      , checksum: checksum
-                      }
+                routeData = {
+                  headers: headers
+                , data: dataBuffer
+                , checksum: checksum
+                }
 
-                      self.assetCache[route] = routeData
+                self.assetCache[route] = routeData
 
-                      cb(null, [route, routeData])
-                    }
+                cb(null, [route, routeData])
+              }
 
-                    afterGettingBuffer = function (dataBuffer) {
-                      if(typeof dataBuffer == 'string')
-                        dataBuffer = new Buffer(dataBuffer)
+              if(typeof body == 'string')
+                dataBuffer = new Buffer(body)
+              else
+                dataBuffer = body
 
-                      if(!Buffer.isBuffer(dataBuffer))
-                        return cb(new Error('No data for route: ' + route))
+              // do checksumming before gzipping the data
+              checksum = crypto.createHash('md5')
+                              .update(dataBuffer)
+                              .digest('hex')
 
-                      // do checksumming before gzipping the data
-                      checksum = crypto.createHash('md5')
-                                      .update(dataBuffer)
-                                      .digest('hex')
+              if(headers['content-encoding'] && headers['content-encoding'].indexOf('gzip') > -1) {
+                zlib.gzip(dataBuffer, function (err, min) {
+                  if(err)
+                    return cb(err)
 
-                      if(header['content-encoding'] && header['content-encoding'].indexOf('gzip') > -1) {
-                        zlib.gzip(dataBuffer, function (err, min) {
-                          if(err)
-                            return cb(err)
-
-                          dataBuffer = min
-                          header['content-length'] = min.length
-                          afterGzippingIfNeeded(dataBuffer)
-                        })
-                      }
-                      else {
-                        afterGzippingIfNeeded(dataBuffer)
-                      }
-                    }
-
-                    if(!_.isEmpty(res.res.text))
-                      dataBuffer = res.res.text
-                    else if (!_.isEmpty(res.body))
-                      dataBuffer = res.body
-                    else
-                      dataBuffer = res.text
-
-                    // JSON!
-                    if(typeof dataBuffer == 'object' && !Buffer.isBuffer(dataBuffer))
-                      dataBuffer = JSON.stringify(dataBuffer)
-
-                    // JSON is stupid sometimes and comes back as an empty string
-                    if(typeof dataBuffer == 'string' && !dataBuffer.trim().length)
-                      dataBuffer = null
-
-                    if(!Buffer.isBuffer(dataBuffer) && typeof dataBuffer == 'string')
-                      dataBuffer = new Buffer(dataBuffer)
-
-                    if(!dataBuffer) {
-                      res.pipe(concat(function (dataBuffer) {
-                        afterGettingBuffer(dataBuffer)
-                      }))
-                    }
-                    else {
-                      afterGettingBuffer(dataBuffer)
-                    }
-                  }
+                  dataBuffer = min
+                  afterGzippingIfNeeded(dataBuffer)
                 })
+              }
+              else {
+                afterGzippingIfNeeded(dataBuffer)
+              }
+            }
+          })
+        }
+        if (!app.address()) {
+          app.listen(0, makeRequest)
+        }
+        else {
+          makeRequest()
+        }
       }
       else {
         // decode the serialized asset
         var headerLength = parseInt(data.slice(0, headerLengthLength).toString(), 10)
-          , header = data.slice(headerLengthLength, headerLengthLength + headerLength).toString()
+          , headers = data.slice(headerLengthLength, headerLengthLength + headerLength).toString()
 
         try {
-          header = JSON.parse(header)
+          headers = JSON.parse(headers)
         }
         catch(e) {
           return cb(e)
         }
 
-        header['content-length'] = parseInt(header['content-length'], 10)
+        headers['content-length'] = parseInt(headers['content-length'], 10)
 
         routeData = {
-          header: header
+          headers: headers
         , data: data.slice(headerLengthLength + headerLength)
         }
 
@@ -375,7 +363,7 @@ Stratosphere.prototype._proxyHandler = function proxyHandler (handler) {
     if(manifestRoute && href == manifestRoute) {
       self._respondWithManifest(res)
     }
-    else if(req.headers['user-agent'].indexOf('node-superagent') > -1) {
+    else if(req.headers['user-agent'] && req.headers['user-agent'].indexOf('stratosphere') > -1) {
       handler(req, res)
     }
     else {
@@ -389,7 +377,7 @@ Stratosphere.prototype._proxyHandler = function proxyHandler (handler) {
               handler(req, res)
             }
             else {
-              res.writeHead(200, asset[1].header)
+              res.writeHead(200, asset[1].headers)
               res.end(asset[1].data)
             }
           })
