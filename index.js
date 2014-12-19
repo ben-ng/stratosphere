@@ -277,6 +277,8 @@ Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
                     }
 
                     afterGettingBuffer = function (dataBuffer) {
+                      if(typeof dataBuffer == 'string')
+                        dataBuffer = new Buffer(dataBuffer)
 
                       if(!Buffer.isBuffer(dataBuffer))
                         return cb(new Error('No data for route: ' + route))
