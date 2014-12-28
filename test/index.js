@@ -128,6 +128,7 @@ test('[app instanceof http.Server] should serve assets from disk when available'
                 , root: path.join(__dirname, 'tmp')
                 , manifestOpts: {message: 'Override'}
                 , route: 'version.json'
+                , noFlush: true
                 })
     , oldServeCat = handler.serveCat
     , interception
@@ -151,7 +152,7 @@ test('[app instanceof http.Server] should serve assets from disk when available'
       interception = instance.intercept()
       interception.listen(port)
 
-      request({uri: addr('cat'), gzip: true, encoding: null}, function (err, res, body) {
+      request({uri: addr('cat'), gzip: true, encoding: null}, function (err, res) {
           t.ifError(err, 'no cat route error')
           t.equal(res.headers['content-type'], 'image/jpeg', 'cat content-type should be image/jpeg')
           t.equal(res.headers['content-length'], '24462', 'cat content-length should be 24462')
@@ -167,7 +168,7 @@ test('[app instanceof http.Server] should serve assets from disk when available'
           })
         })
 
-        request({uri: addr('version.json'), gzip: true, encoding: null}, function (err, res, body) {
+        request({uri: addr('version.json'), gzip: true, encoding: null}, function (err, res) {
           t.deepEqual(JSON.parse(res.body.toString()), {
               version: "0.0.0"
             , message: 'Override'

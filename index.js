@@ -4,7 +4,6 @@ var fs = require('fs')
   , async = require('async')
   , _ = require('lodash')
   , pad = require('pad')
-  , concat = require('concat-stream')
   , crypto = require('crypto')
   , mkdirp = require('mkdirp')
   , rimraf = require('rimraf')
@@ -207,10 +206,11 @@ Stratosphere.prototype.writeAssets = function writeAssets (cb) {
     function writeAsset (tuple, next) {
 
       var data = Buffer.isBuffer(tuple[1].data) ? tuple[1].data : new Buffer(tuple[1].data)
+        , checksumBuffer = new Buffer(tuple[1].checksum)
         , headers = JSON.stringify(tuple[1].headers)
         , paddedHeaderLength = new Buffer(pad(headerLengthLength, '' + Buffer.byteLength(headers), '0'))
         , headerBuffer = new Buffer(headers)
-        , assetData = Buffer.concat([paddedHeaderLength, headerBuffer, data])
+        , assetData = Buffer.concat([checksumBuffer, paddedHeaderLength, headerBuffer, data])
         , routeHash = hash(normalize(tuple[0]))
 
       fs.writeFile(path.join(opts.root, routeHash), assetData, next)
@@ -252,7 +252,7 @@ Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
   else {
     fs.readFile(assetPath, function (err, data) {
       if(err) {
-        function makeRequest () {
+        var makeRequest = function _makeRequest () {
           // try to get it from the route
           request({
             uri: self._appAddress() + route
@@ -262,7 +262,6 @@ Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
           }, function (err, res, body) {
             var dataBuffer
               , afterGzippingIfNeeded
-              , afterGettingBuffer
               , checksum
               , headers
 
@@ -321,8 +320,9 @@ Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
       }
       else {
         // decode the serialized asset
-        var headerLength = parseInt(data.slice(0, headerLengthLength).toString(), 10)
-          , headers = data.slice(headerLengthLength, headerLengthLength + headerLength).toString()
+        var checksum = data.slice(0, 32).toString()
+          , headerLength = parseInt(data.slice(32, headerLengthLength + 32).toString(), 10)
+          , headers = data.slice(headerLengthLength + 32, headerLengthLength + headerLength + 32).toString()
 
         try {
           headers = JSON.parse(headers)
@@ -336,6 +336,7 @@ Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
         routeData = {
           headers: headers
         , data: data.slice(headerLengthLength + headerLength)
+        , checksum: checksum
         }
 
         self.assetCache[route] = routeData
