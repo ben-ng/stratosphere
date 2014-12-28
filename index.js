@@ -335,7 +335,7 @@ Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
 
         routeData = {
           headers: headers
-        , data: data.slice(headerLengthLength + headerLength)
+        , data: data.slice(headerLengthLength + headerLength + 32)
         , checksum: checksum
         }
 

@@ -116,7 +116,7 @@ test('should preload assets', function (t) {
 })
 
 test('[app instanceof http.Server] should serve assets from disk when available', function (t) {
-  t.plan(9)
+  t.plan(11)
 
   /**
   * To test if we are serving from disk or not, we punch out the server
@@ -130,6 +130,7 @@ test('[app instanceof http.Server] should serve assets from disk when available'
                 , route: 'version.json'
                 , noFlush: true
                 })
+    , newInstance
     , oldServeCat = handler.serveCat
     , interception
     , finish = after(2, function () {
@@ -140,7 +141,7 @@ test('[app instanceof http.Server] should serve assets from disk when available'
 
   server.listen(port, function () {
     instance.writeAssets(function (err) {
-      t.ifError(err)
+      t.ifError(err, 'should write assets')
 
       handler.serveCat = function proxiedServeCat (res) {
         res.writeHead(400)
@@ -149,27 +150,40 @@ test('[app instanceof http.Server] should serve assets from disk when available'
         t.end()
       }
 
-      interception = instance.intercept()
-      interception.listen(port)
+      server.close(function (err) {
+        t.ifError(err, 'should close server1 okay')
 
-      request({uri: addr('cat'), gzip: true, encoding: null}, function (err, res) {
-          t.ifError(err, 'no cat route error')
-          t.equal(res.headers['content-type'], 'image/jpeg', 'cat content-type should be image/jpeg')
-          t.equal(res.headers['content-length'], '24462', 'cat content-length should be 24462')
+        server = http.createServer(handler)
+        newInstance = stratosphere(server, {
+                    assets: path.join(__dirname, 'fake-assets.json')
+                  , root: path.join(__dirname, 'tmp')
+                  , manifestOpts: {message: 'Override'}
+                  , route: 'version.json'
+                  , noFlush: true
+                  })
 
-          fs.readFile(path.join(__dirname, 'cat.jpg'), function (err, data) {
-            t.ifError(err, 'no cat image read error')
-            t.ok(bufferEqual(res.body, data), 'cat asset data should match')
+        interception = newInstance.intercept()
+        interception.listen(port, function (err) {
+          t.ifError(err, 'should listen server2 okay')
 
-            // restore the old method before leaving
-            handler.serveCat = oldServeCat
-            t.pass('restored old function')
-            finish()
+          request({uri: addr('cat'), gzip: true, encoding: null}, function (err, res) {
+            t.ifError(err, 'no cat route error')
+            t.equal(res.headers['content-type'], 'image/jpeg', 'cat content-type should be image/jpeg')
+            t.equal(res.headers['content-length'], '24462', 'cat content-length should be 24462')
+
+            fs.readFile(path.join(__dirname, 'cat.jpg'), function (err, data) {
+              t.ifError(err, 'no cat image read error')
+              t.ok(bufferEqual(res.body, data), 'cat asset data should match')
+
+              // restore the old method before leaving
+              handler.serveCat = oldServeCat
+              t.pass('restored old function')
+              finish()
+            })
           })
-        })
 
-        request({uri: addr('version.json'), gzip: true, encoding: null}, function (err, res) {
-          t.deepEqual(JSON.parse(res.body.toString()), {
+          request({uri: addr('version.json'), gzip: true, encoding: null}, function (err, res) {
+            t.deepEqual(JSON.parse(res.body.toString()), {
               version: "0.0.0"
             , message: 'Override'
             , files: {
@@ -187,6 +201,8 @@ test('[app instanceof http.Server] should serve assets from disk when available'
             , assets:[]})
             finish()
           })
+        })
+      })
     })
   })
 })
