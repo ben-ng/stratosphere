@@ -374,6 +374,7 @@ Stratosphere.prototype._proxyHandler = function proxyHandler (handler) {
                     else {
                       clonedHeaders = JSON.parse(JSON.stringify(asset[1].headers))
                       clonedHeaders['content-encoding'] = 'gzip'
+                      clonedHeaders['content-length'] = data.length
                       asset[1].compressedHeaders = clonedHeaders
                       asset[1].compressedData = data
                       res.writeHead(200, asset[1].compressedHeaders)
