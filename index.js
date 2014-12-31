@@ -261,7 +261,6 @@ Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
           , headers: {'user-agent': 'stratosphere'}
           }, function (err, res, body) {
             var dataBuffer
-              , afterGzippingIfNeeded
               , checksum
               , headers
 
@@ -270,21 +269,6 @@ Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
             }
             else {
               headers = _.clone(res.headers)
-
-              // supertest expands our data, so we need to compress it again
-              afterGzippingIfNeeded = function (dataBuffer) {
-                headers['content-length'] = parseInt(headers['content-length'], 10)
-
-                routeData = {
-                  headers: headers
-                , data: dataBuffer
-                , checksum: checksum
-                }
-
-                self.assetCache[route] = routeData
-
-                cb(null, [route, routeData])
-              }
 
               if(typeof body == 'string')
                 dataBuffer = new Buffer(body)
@@ -296,18 +280,19 @@ Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
                               .update(dataBuffer)
                               .digest('hex')
 
-              if(headers['content-encoding'] && headers['content-encoding'].indexOf('gzip') > -1) {
-                zlib.gzip(dataBuffer, function (err, min) {
-                  if(err)
-                    return cb(err)
+              headers['content-length'] = parseInt(headers['content-length'], 10)
 
-                  dataBuffer = min
-                  afterGzippingIfNeeded(dataBuffer)
-                })
+              delete headers['content-encoding']
+
+              routeData = {
+                headers: headers
+              , data: dataBuffer
+              , checksum: checksum
               }
-              else {
-                afterGzippingIfNeeded(dataBuffer)
-              }
+
+              self.assetCache[route] = routeData
+
+              cb(null, [route, routeData])
             }
           })
         }
@@ -356,6 +341,7 @@ Stratosphere.prototype._hasAssetForRoute = function hasAssetForRoute (route, cb)
 Stratosphere.prototype._proxyHandler = function proxyHandler (handler) {
   var self = this
     , manifestRoute = self.opts.route ? normalize(self.opts.route) : false
+    , clonedHeaders
 
   return function (req, res) {
     var href = url.parse(req.url).href
@@ -377,8 +363,33 @@ Stratosphere.prototype._proxyHandler = function proxyHandler (handler) {
               handler(req, res)
             }
             else {
-              res.writeHead(200, asset[1].headers)
-              res.end(asset[1].data)
+              // if the client can accept gzipped data, do that
+              if(req.headers['accept-encoding'] && req.headers['accept-encoding'].indexOf('gzip') > -1) {
+                if(!asset[1].compressedData) {
+                  zlib.gzip(asset[1].data, function (err, data) {
+                    if(err) {
+                      res.writeHead(500)
+                      res.end('could not compress asset')
+                    }
+                    else {
+                      clonedHeaders = JSON.parse(JSON.stringify(asset[1].headers))
+                      clonedHeaders['content-encoding'] = 'gzip'
+                      asset[1].compressedHeaders = clonedHeaders
+                      asset[1].compressedData = data
+                      res.writeHead(200, asset[1].compressedHeaders)
+                      res.end(asset[1].compressedData)
+                    }
+                  })
+                }
+                else {
+                  res.writeHead(200, asset[1].compressedHeaders)
+                  res.end(asset[1].compressedData)
+                }
+              }
+              else {
+                res.writeHead(200, asset[1].headers)
+                res.end(asset[1].data)
+              }
             }
           })
         }

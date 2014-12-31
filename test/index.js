@@ -84,21 +84,19 @@ test('should preload assets', function (t) {
         fs.readFile(path.join(__dirname, 'cat.jpg'), function (err, data) {
           t.ifError(err, 'no cat image read error')
 
-          zlib.gzip(data, function (err, min) {
-            t.ok(bufferEqual(assets['/cat'].data, min), 'cat asset data should match')
+          t.ok(bufferEqual(assets['/cat'].data, data), 'cat asset data should match')
 
-            // assert on the filesystem
-            instance._hasAssetForRoute('/cat', function (exists) {
-              t.ok(exists, '[fs] cat asset should exist on filesystem')
+          // assert on the filesystem
+          instance._hasAssetForRoute('/cat', function (exists) {
+            t.ok(exists, '[fs] cat asset should exist on filesystem')
 
-              instance._assetForRoute('/cat', function (err, asset) {
-                t.ifError(err, '[fs] no cat image read error')
-                t.ok(bufferEqual(asset[1].data, min), 'cat asset data should match')
-                t.equal(asset[1].headers['content-type'], 'image/jpeg', 'cat content-type should be image/jpeg')
-                t.equal(asset[1].headers['content-length'], 24462, 'cat content-length should be 24462')
+            instance._assetForRoute('/cat', function (err, asset) {
+              t.ifError(err, '[fs] no cat image read error')
+              t.ok(bufferEqual(asset[1].data, data), 'cat asset data should match')
+              t.equal(asset[1].headers['content-type'], 'image/jpeg', 'cat content-type should be image/jpeg')
+              t.equal(asset[1].headers['content-length'], 24462, 'cat content-length should be 24462')
 
-                finish()
-              })
+              finish()
             })
           })
 
