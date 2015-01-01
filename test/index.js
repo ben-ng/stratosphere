@@ -6,7 +6,6 @@ var test = require('tape')
   , http = require('http')
   , rimraf = require('rimraf')
   , fs = require('fs')
-  , zlib = require('zlib')
   , bufferEqual = require('buffer-equal')
   , after = require('lodash.after')
   , port = 9876
