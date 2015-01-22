@@ -268,7 +268,7 @@ Stratosphere.prototype._assetForRoute = function assetForRoute (route, cb) {
               cb(err)
             }
             else if (res.statusCode !== 200) {
-              cb(new Error('Expected Status: 200 for ' + assetPath + ', got ' + res.statusCode))
+              cb(new Error('Expected Status: 200 for ' + route + '->' + assetPath + ', got ' + res.statusCode))
             }
             else {
               headers = _.clone(res.headers)
